@@ -20,6 +20,9 @@ app.get("/", (req, res) => {
   res.send("Server is Live.");
 });
 
+const authRouter = require("./routes/authRoutes");
+app.use("/auth", authRouter);
+
 app.listen(PORT, () => {
   console.log("Server is running...");
 });
