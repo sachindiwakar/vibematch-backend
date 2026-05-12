@@ -1,0 +1,133 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  male
+  female
+  others
+}
+
+enum ConnectionStatus {
+  ignored
+  interested
+  accepted
+  rejected
+}
+
+model User {
+  id String @id @default(cuid())
+  firstName String
+  lastName  String
+  email    String @unique
+  password String
+  age Int?
+  gender Gender?
+  photoUrl String @default("https://cdn-icons-png.freepik.com/512/4159/4159471.png")
+  about String @default("This is about section of the user.")
+  interest String[]
+  city String?
+  country String?
+  isVerified Boolean @default(false)
+  verificationToken String?
+  resetToken String?
+  resetTokenExpiry DateTime?
+  deleteToken String?
+  deleteTokenExpiry DateTime?
+
+  // Relations
+  sentRequests ConnectionRequest[] @relation("SentRequests")
+  receivedRequests ConnectionRequest[] @relation("ReceivedRequests")
+  messages Message[]
+  chatParticipants ChatParticipant[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([country])
+}
+
+model ConnectionRequest {
+  id String @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  status ConnectionStatus
+  fromUser User @relation("SentRequests",fields: [fromUserId],references: [id],onDelete: Cascade)
+  toUser User @relation("ReceivedRequests",fields: [toUserId],references: [id],onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([fromUserId, toUserId])
+
+  @@index([fromUserId])
+
+  @@index([toUserId])
+}
+
+model Chat {
+  id String @id @default(cuid())
+  participants ChatParticipant[]
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChatParticipant {
+  id String @id @default(cuid())
+  userId String
+  chatId String
+  user User @relation(fields: [userId],references: [id], onDelete: Cascade)
+  chat Chat @relation(fields: [chatId],references: [id], onDelete: Cascade)
+
+  @@unique([userId, chatId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  senderId String
+  chatId String
+  text String
+  sender User @relation( fields: [senderId],references: [id],onDelete: Cascade)
+  chat Chat @relation(fields: [chatId],references: [id],onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([chatId, createdAt])
+  @@index([senderId])
+}
+
+model Payment {
+  id String @id @default(cuid())
+  userId String
+  paymentId String?
+  orderId String @unique
+  status String
+  amount Int
+  currency String
+  receipt String
+  firstName String?
+  lastName String?
+  membershipType String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
