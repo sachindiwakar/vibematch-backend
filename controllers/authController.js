@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const { sendEmail } = require("../services/sendEmail");
 const { prisma } = require("../config/database");
 const generateToken = require("../utils/jwt");
+const { getSafeUser } = require("../utils/getSafeUser");
 
 //User Sign Up
 const signupUser = async (req, res) => {
@@ -82,7 +83,7 @@ const signupUser = async (req, res) => {
 
     res.status(201).json({
       message: "Signup successful. Check your email.",
-      data: savedUser,
+      data: getSafeUser(savedUser),
     });
   } catch (err) {
     return res.status(400).json({
@@ -211,7 +212,7 @@ const loginUser = async (req, res) => {
 
     return res.status(200).json({
       message: "Login successful",
-      data: user,
+      data: getSafeUser(user),
     });
   } catch (err) {
     return res.status(400).json({
