@@ -140,7 +140,9 @@ const verifyUser = async (req, res) => {
     // Set Cookie
     res.cookie("token", jwtToken, {
       httpOnly: true,
-      expires: new Date(Date.now() + 8 * 3600000),
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -202,7 +204,9 @@ const loginUser = async (req, res) => {
     // Set Cookie
     res.cookie("token", token, {
       httpOnly: true,
-      expires: new Date(Date.now() + 8 * 3600000),
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     return res.status(200).json({
@@ -219,7 +223,11 @@ const loginUser = async (req, res) => {
 //LogOut User
 const logoutUser = async (req, res) => {
   try {
-    res.clearCookie("token");
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
 
     return res.status(200).json({
       message: "Logout successful",
@@ -231,9 +239,193 @@ const logoutUser = async (req, res) => {
   }
 };
 
+// Forgot Password
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Find User
+    const user = await prisma.user.findUnique({
+      where: {
+        email,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    // Generate Reset Token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    // Expiry Time
+    const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Save Token
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+
+      data: {
+        resetToken,
+        resetTokenExpiry,
+      },
+    });
+
+    // Reset Link
+    const link = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
+
+    // Send Email
+    await sendEmail(
+      email,
+      "Reset Your VibeMatch Password",
+      `
+      <div style="font-family: Arial, sans-serif; background-color:#f4f6f8; padding: 30px;">
+        
+        <div style="max-width:500px; margin:auto; background:white; border-radius:10px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+          
+          <h2 style="text-align:center; color:#4CAF50; margin-bottom:10px;">
+            VibeMatch 💕🔐
+          </h2>
+
+          <h3 style="text-align:center; margin-top:0;">
+            Reset Your Password
+          </h3>
+
+          <p style="font-size:15px; color:#555;">
+            Hi <strong>${user.firstName}</strong>,
+          </p>
+
+          <p style="font-size:14px; color:#555;">
+            We received a request to reset your password.
+          </p>
+
+          <div style="text-align:center; margin:25px 0;">
+            <a href="${link}" 
+              style="background:#4CAF50; color:white; padding:12px 22px; text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
+              Reset Password
+            </a>
+          </div>
+
+          <p style="font-size:13px; color:#777;">
+            This link expires in 15 minutes.
+          </p>
+
+        </div>
+      </div>
+      `,
+    );
+
+    return res.status(200).json({
+      message: "Reset link sent to email",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message || "Something went wrong",
+    });
+  }
+};
+
+// Reset Password
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    // Validate Input
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        message: "Token and new password are required",
+      });
+    }
+
+    // Find User
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    // Invalid Token
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired token",
+      });
+    }
+
+    // Hash Password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update Password
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      },
+    });
+
+    // Send Confirmation Email
+    await sendEmail(
+      user.email,
+      "Your VibeMatch password was reset successfully",
+      `
+      <div style="font-family: Arial, sans-serif; background-color:#f4f6f8; padding: 30px;">
+        
+        <div style="max-width:500px; margin:auto; background:white; border-radius:10px; padding:25px; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
+          
+          <h2 style="text-align:center; color:#4CAF50; margin-bottom:10px;">
+            VibeMatch 💕🎉
+          </h2>
+
+          <h3 style="text-align:center; margin-top:0;">
+            Password Reset Successful
+          </h3>
+
+          <p style="font-size:15px; color:#555;">
+            Hi <strong>${user.firstName}</strong>,
+          </p>
+
+          <p style="font-size:14px; color:#555;">
+            Your password has been successfully updated.
+          </p>
+
+          <div style="text-align:center; margin:25px 0;">
+            <a href="${process.env.CLIENT_URL}/login" 
+              style="background:#4CAF50; color:white; padding:12px 22px; text-decoration:none; border-radius:6px; font-weight:bold; display:inline-block;">
+              Visit VibeMatch
+            </a>
+          </div>
+
+        </div>
+      </div>
+      `,
+    );
+
+    return res.status(200).json({
+      message: "Password reset successful",
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: err.message || "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   signupUser,
   verifyUser,
   loginUser,
   logoutUser,
+  forgotPassword,
+  resetPassword,
 };
