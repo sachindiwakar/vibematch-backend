@@ -9,10 +9,11 @@ const PORT = process.env.PORT;
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.CLIENT_URL,
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -21,7 +22,9 @@ app.get("/", (req, res) => {
 });
 
 const authRouter = require("./routes/authRoutes");
+const userRouter = require("./routes/userRoutes");
 app.use("/auth", authRouter);
+app.use("/user", userRouter);
 
 app.listen(PORT, () => {
   console.log("Server is running...");
