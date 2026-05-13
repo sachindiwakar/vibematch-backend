@@ -23,8 +23,10 @@ app.get("/", (req, res) => {
 
 const authRouter = require("./routes/authRoutes");
 const userRouter = require("./routes/userRoutes");
+const profileRouter = require("./routes/profileRoutes");
 app.use("/auth", authRouter);
 app.use("/user", userRouter);
+app.use("/profile", profileRouter);
 
 app.listen(PORT, () => {
   console.log("Server is running...");
