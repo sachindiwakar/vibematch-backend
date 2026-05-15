@@ -76,9 +76,9 @@ model ConnectionRequest {
 
   @@index([toUserId])
 }
-
 model Chat {
   id String @id @default(cuid())
+  chatKey String @unique
   participants ChatParticipant[]
   messages Message[]
 
